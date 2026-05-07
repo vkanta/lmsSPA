@@ -781,11 +781,44 @@
 
       sorted.forEach(([id, conv]) => {
         const item = document.createElement('div');
-        item.className = 'conversation-item' + (id === currentConversationId ? ' active' : '');
-        item.textContent = conv.title || 'New Chat';
-        item.addEventListener('click', () => loadConversation(id));
+        item.className = 'conversation-item-wrapper';
+        item.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:2px 4px;border-radius:8px;';
+
+        const clickArea = document.createElement('div');
+        clickArea.className = 'conversation-item' + (id === currentConversationId ? ' active' : '');
+        clickArea.textContent = conv.title || 'New Chat';
+        clickArea.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;';
+        clickArea.addEventListener('click', () => loadConversation(id));
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.innerHTML = '&times;';
+        deleteBtn.style.cssText = 'background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;padding:4px 6px;border-radius:4px;flex-shrink:0;opacity:0.4;transition:all 0.15s;';
+        deleteBtn.addEventListener('mouseenter', () => { deleteBtn.style.opacity = '1'; deleteBtn.style.color = 'var(--accent)'; });
+        deleteBtn.addEventListener('mouseleave', () => { deleteBtn.style.opacity = '0.4'; deleteBtn.style.color = 'var(--text-muted)'; });
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteConversation(id);
+        });
+
+        item.appendChild(clickArea);
+        item.appendChild(deleteBtn);
         conversationList.appendChild(item);
       });
+    }
+
+    function deleteConversation(id) {
+      delete conversations[id];
+      saveConversations();
+      if (currentConversationId === id) {
+        currentConversationId = null;
+        if (Object.keys(conversations).length > 0) {
+          const keys = Object.keys(conversations);
+          loadConversation(keys[keys.length - 1]);
+        } else {
+          createNewConversation();
+        }
+      }
+      renderConversationList();
     }
 
     function createNewConversation() {
@@ -799,6 +832,7 @@
 
     function loadConversation(id) {
       currentConversationId = id;
+      localStorage.setItem('lm_chat_last_id', id);
       renderConversationList();
 
       if (!conversations[id] || conversations[id].messages.length === 0) {
@@ -1255,7 +1289,13 @@
     loadModels();
     renderConversationList();
     if (Object.keys(conversations).length > 0) {
-      createNewConversation();
+      const lastId = localStorage.getItem('lm_chat_last_id');
+      if (lastId && conversations[lastId]) {
+        loadConversation(lastId);
+      } else {
+        const sorted = Object.entries(conversations).sort((a, b) => b[1].updatedAt - a[1].updatedAt);
+        if (sorted.length > 0) loadConversation(sorted[0][0]);
+      }
     }
   </script>
 </body>

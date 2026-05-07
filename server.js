@@ -184,33 +184,52 @@ const TOOLS = [
 const toolImplementations = {
   async search_web({ query }) {
     try {
-      const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept-Language': 'en-US,en;q=0.9'
-        }
-      });
-      const html = await response.text();
+      // Use DuckDuckGo Instant Answer API (more reliable, no HTML parsing)
+      const apiRes = await fetch(
+        `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+      const apiData = await apiRes.json();
+
       const results = [];
-      const regex = /<a href="([^"]+)"[^>]*><[^>]*class="result__a"[^>]*>([^<]+)<\/a>[^<]*<a[^>]*><[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
-      let match;
-      while ((match = regex.exec(html)) !== null && results.length < 8) {
-        const snippet = match[3]
-          .replace(/<[^>]+>/g, '')
-          .replace(/&#9200;/g, '•')
-          .trim();
-        results.push({
-          title: match[2].trim(),
-          url: match[1],
-          snippet: snippet.substring(0, 200)
-        });
-      }
-      if (results.length === 0) {
-        const simpleRegex = /<a[^>]*class="result__a"[^>]*>([^<]+)<\/a>/g;
-        while ((match = simpleRegex.exec(html)) !== null && results.length < 8) {
-          results.push({ title: match[1].trim(), url: 'N/A', snippet: 'No snippet available' });
+
+      // Extract related topics (these are the actual search results)
+      if (apiData.RelatedTopics && apiData.RelatedTopics.length > 0) {
+        for (const topic of apiData.RelatedTopics) {
+          if (results.length >= 8) break;
+          // Skip separator entries
+          if (topic.Topics) {
+            for (const sub of topic.Topics) {
+              if (results.length >= 8) break;
+              if (sub.Text && sub.FirstURL) {
+                results.push({
+                  title: sub.Text.split('.').shift()?.trim() || sub.Text.substring(0, 80),
+                  url: sub.FirstURL,
+                  snippet: sub.Text.substring(0, 250)
+                });
+              }
+            }
+          } else if (topic.Text && topic.FirstURL) {
+            results.push({
+              title: topic.Text.split('.').shift()?.trim() || topic.Text.substring(0, 80),
+              url: topic.FirstURL,
+              snippet: topic.Text.substring(0, 250)
+            });
+          }
         }
       }
+
+      // Add abstract if available (featured answer)
+      if (apiData.Abstract) {
+        const abstractEntry = {
+          title: apiData.Heading || query,
+          url: apiData.AbstractURL || '',
+          snippet: apiData.Abstract.substring(0, 400)
+        };
+        // Prepend abstract as first result
+        results.unshift(abstractEntry);
+      }
+
       return { query, results, count: results.length };
     } catch (err) {
       return { error: `Search failed: ${err.message}` };
