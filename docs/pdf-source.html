@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @page { margin: 0.75in; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #2d3436; line-height: 1.7; font-size: 11pt; }
+  .header { background: linear-gradient(135deg, #1a1a2e, #16213e); color: white; padding: 40px 30px; margin: -0.75in -0.75in 30px -0.75in; border-radius: 0 0 20px 20px; }
+  .header h1 { font-size: 26pt; margin: 0 0 6px 0; letter-spacing: -0.5px; }
+  .header .subtitle { font-size: 11pt; opacity: 0.8; margin: 0; }
+  .meta { display: flex; gap: 30px; margin-bottom: 30px; padding: 16px 20px; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #e94560; }
+  .meta-item { font-size: 10pt; }
+  .meta-item strong { color: #636e72; display: block; font-size: 8pt; text-transform: uppercase; letter-spacing: 1px; }
+  h2 { font-size: 14pt; color: #1a1a2e; margin: 28px 0 12px 0; border-bottom: 2px solid #eee; padding-bottom: 6px; }
+  h3 { font-size: 12pt; color: #2d3436; margin: 18px 0 8px 0; }
+  p { margin: 6px 0; }
+  .badge { display: inline-block; background: #e94560; color: white; padding: 2px 10px; border-radius: 12px; font-size: 8pt; font-weight: 600; vertical-align: middle; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 10pt; }
+  th { background: #1a1a2e; color: white; padding: 10px 12px; text-align: left; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+  tr:nth-child(even) { background: #f8f9fa; }
+  .code-block { background: #1a1a2e; color: #dfe6e9; padding: 14px 18px; border-radius: 8px; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 9pt; margin: 10px 0; overflow: hidden; }
+  .section { page-break-inside: avoid; }
+  .footer { position: fixed; bottom: 0.5in; left: 0.75in; right: 0.75in; text-align: center; font-size: 8pt; color: #b2bec3; border-top: 1px solid #eee; padding-top: 8px; }
+  .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+  .feature { padding: 10px 14px; background: #f8f9fa; border-radius: 8px; border-left: 3px solid #e94560; font-size: 10pt; }
+  .feature strong { display: block; margin-bottom: 2px; color: #1a1a2e; }
+  ul { padding-left: 18px; margin: 6px 0; }
+  li { margin: 4px 0; font-size: 10.5pt; }
+  .tool-icon { font-style: normal; margin-right: 4px; }
+  .warning { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 10pt; }
+  .info { background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 10pt; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>LM Studio Chat SPA</h1>
+  <p class="subtitle">Single-Page Chat Application with Tool Calling for Local LLM Inference</p>
+</div>
+
+<div class="meta">
+  <div class="meta-item"><strong>Author</strong>Vasileios Kantartzis</div>
+  <div class="meta-item"><strong>Email</strong>vasileios.kantartzis@aptiv.com</div>
+  <div class="meta-item"><strong>Date</strong>May 7, 2026</div>
+</div>
+
+<h2>Overview</h2>
+<p>A lightweight, browser-based Single Page Application (SPA) that connects to a local LM Studio server for real-time chat with locally-hosted Large Language Models. The application features a dark-themed UI inspired by LM Studio's native interface, with streaming responses, conversation management, reasoning model support, and an intelligent tool-calling system that enables the model to perform real-world actions.</p>
+
+<h2>Architecture</h2>
+<h3>Technology Stack</h3>
+<table>
+  <tr><th>Component</th><th>Technology</th><th>Purpose</th></tr>
+  <tr><td>Frontend</td><td>Vanilla HTML5 / CSS3 / JavaScript</td><td>Zero-dependency SPA</td></tr>
+  <tr><td>Proxy Server</td><td>Node.js (built-in http module)</td><td>CORS proxy + static file server + tool executor</td></tr>
+  <tr><td>Backend API</td><td>LM Studio Local Server</td><td>OpenAI-compatible REST API</td></tr>
+  <tr><td>Storage</td><td>Browser localStorage</td><td>Conversation &amp; settings persistence</td></tr>
+</table>
+
+<h3>Request Flow</h3>
+<p>The SPA runs entirely in the browser. A Node.js proxy server bridges the browser-to-API communication gap (CORS), forwarding all <code>/v1/*</code> requests to the LM Studio server on port 1234. Streaming responses are piped directly to the browser for real-time rendering. When the model requests tool calls, the proxy intercepts the response, executes tools server-side, feeds results back to the model (up to 5 rounds), then streams the final answer to the client.</p>
+
+<h3>Tool-Calling Architecture</h3>
+<div class="info">
+  <strong>How it works:</strong> The proxy automatically injects tool definitions into every chat request. When the model returns tool calls, the proxy executes them against server-side implementations, appends results to the conversation context, and re-queries the model until it produces a final text response. All of this is transparent to the client, which receives real-time SSE events for tool start/result status.
+</div>
+
+<h2>Project Structure</h2>
+<div class="code-block">
+lmstudio-chat-spa/
+├── index.html                      # Main SPA (HTML + CSS + JS, ~1200 lines)
+├── server.js                       # Node.js proxy + static server + tool executor
+└── docs/
+    ├── pdf-source.html             # Documentation source (this file)
+    └── project-documentation.pdf   # Rendered PDF
+</div>
+
+<h2>Detected Models</h2>
+<table>
+  <tr><th>Model</th><th>Parameters</th><th>Architecture</th><th>Size</th><th>Status</th></tr>
+  <tr><td>qwen/qwen3.6-27b</td><td>27B</td><td>qwen3.5</td><td>17.48 GB</td><td>LOADED</td></tr>
+  <tr><td>qwen/qwen3.5-35b-a3b</td><td>35B-A3B</td><td>qwen3.5-moe</td><td>22.07 GB</td><td>Local</td></tr>
+  <tr><td>text-embedding-nomic-embed-text-v1.5</td><td>&mdash;</td><td>Nomic BERT</td><td>84.11 MB</td><td>Local</td></tr>
+</table>
+
+<h2>Core Features</h2>
+<div class="feature-grid">
+  <div class="feature"><strong>Streaming Responses</strong>Real-time token-by-token streaming with incremental markdown rendering</div>
+  <div class="feature"><strong>Reasoning Support</strong>Collapsible "Thinking" blocks for reasoning models (e.g., Qwen)</div>
+  <div class="feature"><strong>Conversation History</strong>Sidebar with persistent conversations saved to localStorage</div>
+  <div class="feature"><strong>Model Switching</strong>Dynamic model selector populated from LM Studio's model list</div>
+  <div class="feature"><strong>Generation Settings</strong>Configurable temperature, max tokens, top-p, and system prompt</div>
+  <div class="feature"><strong>Stop Generation</strong>Abort button to cancel streaming mid-response</div>
+  <div class="feature"><strong>Markdown Rendering</strong>Built-in renderer for code blocks, lists, bold, italic, headings, blockquotes</div>
+  <div class="feature"><strong>Quick Suggestions</strong>Welcome screen with clickable prompt suggestions</div>
+</div>
+
+<h2>Tool-Calling System</h2>
+<p>The proxy server implements 11 tools that the model can invoke automatically. Tools are executed server-side for security and access to system resources.</p>
+
+<h3>Available Tools</h3>
+<table>
+  <tr><th>Tool</th><th>Description</th><th>Parameters</th></tr>
+  <tr><td><span class="tool-icon">🔍</span> <code>search_web</code></td><td>Search the internet via DuckDuckGo for current information, news, prices, etc.</td><td><code>query</code> (string)</td></tr>
+  <tr><td><span class="tool-icon">🕐</span> <code>get_current_time</code></td><td>Get the current date and time in any timezone</td><td><code>timezone</code> (string, default: UTC)</td></tr>
+  <tr><td><span class="tool-icon">🧮</span> <code>calculator</code></td><td>Evaluate mathematical expressions (supports sqrt, sin, cos, log, pi, e, ^)</td><td><code>expression</code> (string)</td></tr>
+  <tr><td><span class="tool-icon">🌐</span> <code>fetch_url</code></td><td>Fetch and extract text content from any URL (10s timeout, strips scripts/styles)</td><td><code>url</code> (string)</td></tr>
+  <tr><td><span class="tool-icon">📁</span> <code>list_files</code></td><td>List files and directories in a local path</td><td><code>directory</code> (string, optional)</td></tr>
+  <tr><td><span class="tool-icon">📄</span> <code>read_file</code></td><td>Read a local file (max 1MB, content truncated at 50KB)</td><td><code>filepath</code> (string)</td></tr>
+  <tr><td><span class="tool-icon">✏️</span> <code>write_file</code></td><td>Write content to a local file (creates parent dirs automatically)</td><td><code>filepath</code>, <code>content</code> (strings)</td></tr>
+  <tr><td><span class="tool-icon">💻</span> <code>run_command</code></td><td>Execute a shell command (30s timeout, safety-blocked dangerous commands)</td><td><code>command</code> (string), <code>timeout</code> (number)</td></tr>
+  <tr><td><span class="tool-icon">🌤️</span> <code>get_weather</code></td><td>Get weather for a location (OpenWeatherMap API or wttr.in fallback)</td><td><code>location</code> (string), <code>units</code> (metric/imperial)</td></tr>
+  <tr><td><span class="tool-icon">🔊</span> <code>text_to_speech_info</code></td><td>Query available TTS models from LM Studio</td><td><code>action</code> (list_models/get_info)</td></tr>
+  <tr><td><span class="tool-icon">📝</span> <code>summarize_text</code></td><td>Summarize long text by extracting key sentences up to max word count</td><td><code>text</code> (string), <code>max_length</code> (number)</td></tr>
+</table>
+
+<h3>Tool-Calling Loop</h3>
+<p>The proxy supports up to <strong>5 automated tool-calling rounds</strong> per request. After the model's first response, if tool calls are detected:</p>
+<ol>
+  <li>Proxy executes each tool and collects results</li>
+  <li>Results are appended to the conversation context</li>
+  <li>Proxy re-queries the model with updated context</li>
+  <li>Repeats until the model produces a final text response or 5 rounds elapse</li>
+</ol>
+
+<h3>Client-Side Tool Events</h3>
+<p>The client receives real-time Server-Sent Events for tool execution:</p>
+<table>
+  <tr><th>Event Type</th><th>When Sent</th><th>Client Behavior</th></tr>
+  <tr><td><code>tool_calls_start</code></td><td>Before executing a batch of tool calls</td><td>Shows "Running N tools..." indicator</td></tr>
+  <tr><td><code>tool_start</code></td><td>Before each individual tool execution</td><td>Shows tool name with "running" status badge</td></tr>
+  <tr><td><code>tool_result</code></td><td>After each tool completes</td><td>Updates badge to "done", stores result</td></tr>
+</table>
+
+<h2>Security</h2>
+<h3>Command Safety</h3>
+<p>The <code>run_command</code> tool blocks dangerous operations:</p>
+<div class="code-block">
+Blocked patterns: format, mkfs, rm -rf, fork bombs, dd if=, shutdown, reboot, fdisk
+</div>
+<p>All commands have a 30-second default timeout. Output is truncated at 10,000 characters (stdout) and 5,000 characters (stderr).</p>
+
+<h3>File Safety</h3>
+<p>File read operations are limited to 1MB files with content truncated at 50KB. Write operations create parent directories automatically but operate on resolved absolute paths.</p>
+
+<h2>Configuration</h2>
+<h3>Default Settings</h3>
+<table>
+  <tr><th>Parameter</th><th>Default</th><th>Range</th></tr>
+  <tr><td>Temperature</td><td>0.7</td><td>0.0 &ndash; 2.0</td></tr>
+  <tr><td>Max Tokens</td><td>4096</td><td>64 &ndash; 8192</td></tr>
+  <tr><td>Top P</td><td>0.9</td><td>0.0 &ndash; 1.0</td></tr>
+  <tr><td>System Prompt</td><td>Tool-aware prompt (see below)</td><td>Customizable</td></tr>
+</table>
+
+<h3>Default System Prompt</h3>
+<div class="code-block">
+You are a helpful assistant. Use available tools when they help answer the
+user's question. For current information, use search_web. For math, use
+calculator. For time questions, use get_current_time. For weather, use
+get_weather. For file operations, use read_file, write_file, or list_files.
+For system commands, use run_command.
+</div>
+
+<h3>Environment Variables</h3>
+<table>
+  <tr><th>Variable</th><th>Purpose</th><th>Default</th></tr>
+  <tr><td><code>WEATHER_API_KEY</code></td><td>OpenWeatherMap API key for weather tool</td><td>Fallback to wttr.in</td></tr>
+</table>
+
+<h2>Getting Started</h2>
+<h3>Prerequisites</h3>
+<ul>
+  <li>LM Studio installed and running (<code>lms server start</code>)</li>
+  <li>Node.js v18+ available</li>
+  <li>At least one LLM model loaded</li>
+</ul>
+
+<h3>Run Commands</h3>
+<div class="code-block">
+# 1. Start LM Studio server
+lms server start
+
+# 2. Start the SPA proxy server
+cd lmstudio-chat-spa
+node server.js
+
+# 3. Open in browser
+# http://localhost:3001
+</div>
+
+<h2>API Compatibility</h2>
+<p>The proxy server is compatible with the OpenAI API specification, supporting:</p>
+<ul>
+  <li><code>GET /v1/models</code> &mdash; List available models</li>
+  <li><code>POST /v1/chat/completions</code> &mdash; Chat completions (with streaming)</li>
+</ul>
+<p>Tool definitions are auto-injected into chat requests. Clients need not specify tools manually.</p>
+
+<div class="footer">
+  LM Studio Chat SPA &bull; Vasileios Kantartzis &bull; May 2026
+</div>
+</body>
+</html>

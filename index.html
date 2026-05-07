@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LM Studio Chat</title>
+  <style>
+    :root {
+      --bg-primary: #1a1a2e;
+      --bg-secondary: #16213e;
+      --bg-tertiary: #0f3460;
+      --bg-input: #1a1a3e;
+      --text-primary: #e0e0e0;
+      --text-secondary: #a0a0b0;
+      --text-muted: #6c6c80;
+      --accent: #e94560;
+      --accent-hover: #ff6b81;
+      --border: #2a2a4a;
+      --user-msg-bg: #0f3460;
+      --ai-msg-bg: #16213e;
+      --scrollbar-thumb: #3a3a5a;
+      --code-bg: #0d1117;
+      --success: #2ecc71;
+      --warning: #f39c12;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo svg { width: 24px; height: 24px; }
+
+    .new-chat-btn {
+      width: 100%;
+      padding: 10px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .new-chat-btn:hover { background: var(--accent-hover); }
+
+    .conversation-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .conversation-item {
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .conversation-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+    .conversation-item.active { background: var(--bg-tertiary); color: var(--text-primary); }
+
+    .sidebar-footer {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--warning);
+    }
+
+    .status-dot.connected { background: var(--success); }
+
+    /* Main area */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* Header */
+    .chat-header {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-secondary);
+    }
+
+    .model-selector {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .model-selector label {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .model-select {
+      background: var(--bg-input);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      min-width: 220px;
+    }
+
+    .model-select:focus { outline: none; border-color: var(--accent); }
+
+    .header-actions { display: flex; gap: 8px; }
+
+    .icon-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      width: 34px;
+      height: 34px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .icon-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
+    /* Messages */
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      scroll-behavior: smooth;
+    }
+
+    .welcome-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .welcome-screen h2 {
+      font-size: 24px;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .welcome-screen p { font-size: 14px; margin-bottom: 24px; }
+
+    .suggestions {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      max-width: 500px;
+      width: 100%;
+    }
+
+    .suggestion {
+      padding: 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+      text-align: left;
+    }
+
+    .suggestion:hover { border-color: var(--accent); color: var(--text-primary); }
+
+    .message {
+      margin-bottom: 16px;
+      display: flex;
+      gap: 12px;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .message-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .message.user .message-avatar { background: var(--bg-tertiary); color: var(--accent); }
+    .message.assistant .message-avatar { background: var(--accent); color: white; }
+
+    .message-content {
+      flex: 1;
+      min-width: 0;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .message-content p { margin-bottom: 8px; }
+    .message-content p:last-child { margin-bottom: 0; }
+
+    .message-content pre {
+      background: var(--code-bg);
+      border-radius: 8px;
+      padding: 12px;
+      overflow-x: auto;
+      margin: 8px 0;
+      border: 1px solid var(--border);
+    }
+
+    .message-content code {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 13px;
+    }
+
+    .message-content :not(pre) > code {
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    .message-content ul, .message-content ol {
+      padding-left: 20px;
+      margin: 8px 0;
+    }
+
+    .message-content li { margin-bottom: 4px; }
+
+    .message-content strong { color: var(--text-primary); }
+    .message-content em { color: var(--text-secondary); }
+
+    .message-content blockquote {
+      border-left: 3px solid var(--accent);
+      padding-left: 12px;
+      color: var(--text-secondary);
+      margin: 8px 0;
+    }
+
+    .reasoning-block {
+      background: rgba(15, 52, 96, 0.3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin: 8px 0;
+      overflow: hidden;
+    }
+
+    .reasoning-header {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      user-select: none;
+    }
+
+    .reasoning-header:hover { color: var(--text-secondary); }
+
+    .reasoning-content {
+      padding: 0 12px 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-style: italic;
+      display: none;
+      line-height: 1.5;
+    }
+
+    .reasoning-content.expanded { display: block; }
+
+    /* Tool call UI */
+    .tool-call-block {
+      background: rgba(15, 52, 96, 0.2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin: 8px 0;
+      overflow: hidden;
+    }
+
+    .tool-call-header {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+    }
+
+    .tool-call-header:hover { color: var(--text-secondary); }
+
+    .tool-icon {
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .tool-status {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: auto;
+    }
+
+    .tool-status.running { background: rgba(243, 156, 18, 0.2); color: var(--warning); }
+    .tool-status.done { background: rgba(46, 204, 113, 0.2); color: var(--success); }
+    .tool-status.error { background: rgba(231, 76, 60, 0.2); color: #e74c3c; }
+
+    .tool-args {
+      padding: 4px 12px 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      background: rgba(0,0,0,0.2);
+      display: none;
+    }
+
+    .tool-args.expanded { display: block; }
+
+    .typing-indicator {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px 0;
+    }
+
+    .typing-indicator span {
+      width: 6px;
+      height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: typing 1.2s infinite;
+    }
+
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typing {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-6px); opacity: 1; }
+    }
+
+    /* Input area */
+    .input-area {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-secondary);
+    }
+
+    .input-wrapper {
+      max-width: 800px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .input-box {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 48px 12px 16px;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      min-height: 48px;
+      max-height: 150px;
+      line-height: 1.5;
+    }
+
+    .input-box:focus { outline: none; border-color: var(--accent); }
+    .input-box::placeholder { color: var(--text-muted); }
+
+    .send-btn {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .send-btn:hover { background: var(--accent-hover); }
+    .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .input-hint {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    /* Settings modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.active { display: flex; }
+
+    .modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 400px;
+      max-width: 90vw;
+    }
+
+    .modal h3 {
+      margin-bottom: 16px;
+      font-size: 16px;
+    }
+
+    .setting-group {
+      margin-bottom: 16px;
+    }
+
+    .setting-group label {
+      display: block;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .setting-group input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .setting-group input[type="number"],
+    .setting-group select {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      color: var(--text-primary);
+      font-size: 13px;
+    }
+
+    .setting-value {
+      float: right;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .suggestions { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+        LM Chat
+      </div>
+      <button class="new-chat-btn" id="newChatBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        New Chat
+      </button>
+    </div>
+    <div class="conversation-list" id="conversationList"></div>
+    <div class="sidebar-footer">
+      <div class="status-indicator">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Connecting...</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <header class="chat-header">
+      <div class="model-selector">
+        <label for="modelSelect">Model:</label>
+        <select class="model-select" id="modelSelect">
+          <option value="">Loading models...</option>
+        </select>
+      </div>
+      <div class="header-actions">
+        <span style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:4px;padding:4px 10px;background:var(--bg-tertiary);border-radius:6px;">
+          🔧 Tools: search, time, calc, fetch, files, weather, shell, summarize
+        </span>
+        <button class="icon-btn" id="settingsBtn" title="Settings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="messages-container" id="messagesContainer">
+      <div class="welcome-screen" id="welcomeScreen">
+        <h2>How can I help you today?</h2>
+        <p>Select a model and start chatting</p>
+        <div class="suggestions">
+          <div class="suggestion" data-prompt="What's the weather in London today?">🌤️ What's the weather in London today?</div>
+          <div class="suggestion" data-prompt="What is the current time in New York?">🕐 What is the current time in New York?</div>
+          <div class="suggestion" data-prompt="Calculate the square root of 256 times 3.14">🧮 Calculate sqrt(256) * 3.14</div>
+          <div class="suggestion" data-prompt="List files in /home/vkanta/wspaces">📁 List files in /home/vkanta/wspaces</div>
+          <div class="suggestion" data-prompt="What processes are running?">💻 What processes are running?</div>
+          <div class="suggestion" data-prompt="Explain how transformers work in simple terms">Explain how transformers work in simple terms</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-wrapper">
+        <textarea class="input-box" id="messageInput" placeholder="Type your message..." rows="1"></textarea>
+        <button class="send-btn" id="sendBtn" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+        <button class="send-btn" id="stopBtn" style="display:none;background:#e74c3c;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="1"/>
+          </svg>
+        </button>
+      </div>
+      <div class="input-hint">Press Enter to send, Shift+Enter for new line</div>
+    </div>
+  </main>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+      <h3>Generation Settings</h3>
+      <div class="setting-group">
+        <label>Temperature <span class="setting-value" id="tempValue">0.7</span></label>
+        <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7">
+      </div>
+      <div class="setting-group">
+        <label>Max Tokens <span class="setting-value" id="maxTokensValue">4096</span></label>
+        <input type="number" id="maxTokens" min="64" max="8192" step="64" value="4096">
+      </div>
+      <div class="setting-group">
+        <label>Top P <span class="setting-value" id="topPValue">0.9</span></label>
+        <input type="range" id="topP" min="0" max="1" step="0.05" value="0.9">
+      </div>
+      <div class="setting-group">
+        <label>System Prompt</label>
+        <textarea id="systemPrompt" rows="3" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:8px;color:var(--text-primary);font-size:13px;font-family:inherit;resize:vertical;">You are a helpful assistant. Use available tools when they help answer the user's question. For current information, use search_web. For math, use calculator. For time questions, use get_current_time. For weather, use get_weather. For file operations, use read_file, write_file, or list_files. For system commands, use run_command.</textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="cancelSettings">Cancel</button>
+        <button class="btn btn-primary" id="saveSettings">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Simple markdown renderer
+    function renderMarkdown(text) {
+      let html = text
+        // Code blocks
+        .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
+        // Inline code
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        // Bold
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        // Italic
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        // Blockquotes
+        .replace(/^>\s*(.+)$/gm, '<blockquote>$1</blockquote>')
+        // Unordered lists
+        .replace(/^[-\*]\s+(.+)$/gm, '<li>$1</li>')
+        // Ordered lists
+        .replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>')
+        // Wrap consecutive li in ul
+        .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+        // Headings
+        .replace(/^###\s+(.+)$/gm, '<h4>$1</h4>')
+        .replace(/^##\s+(.+)$/gm, '<h3>$1</h3>')
+        .replace(/^#\s+(.+)$/gm, '<h2>$1</h2>')
+        // Line breaks
+        .replace(/\n/g, '<br>');
+
+      return html;
+    }
+
+    // State
+    const API_BASE = '/v1';
+    let conversations = JSON.parse(localStorage.getItem('lm_chat_conversations') || '{}');
+    let currentConversationId = null;
+    let settings = JSON.parse(localStorage.getItem('lm_chat_settings') || '{"temperature":0.7,"maxTokens":4096,"topP":0.9,"systemPrompt":"You are a helpful assistant. Use available tools when they help answer the users question. For current information, use search_web. For math, use calculator. For time questions, use get_current_time. For weather, use get_weather. For file operations, use read_file, write_file, or list_files. For system commands, use run_command."}');
+    let isStreaming = false;
+    let abortController = null;
+
+    // Elements
+    const messagesContainer = document.getElementById('messagesContainer');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const modelSelect = document.getElementById('modelSelect');
+    const conversationList = document.getElementById('conversationList');
+    const newChatBtn = document.getElementById('newChatBtn');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsModal = document.getElementById('settingsModal');
+
+    // Initialize settings UI
+    document.getElementById('temperature').value = settings.temperature;
+    document.getElementById('maxTokens').value = settings.maxTokens;
+    document.getElementById('topP').value = settings.topP;
+    document.getElementById('systemPrompt').value = settings.systemPrompt;
+    document.getElementById('tempValue').textContent = settings.temperature;
+    document.getElementById('maxTokensValue').textContent = settings.maxTokens;
+    document.getElementById('topPValue').textContent = settings.topP;
+
+    // Load models
+    async function loadModels() {
+      try {
+        const res = await fetch(`${API_BASE}/models`);
+        const data = await res.json();
+        const llmModels = data.data.filter(m => !m.id.includes('embedding'));
+
+        modelSelect.innerHTML = '';
+        llmModels.forEach(model => {
+          const option = document.createElement('option');
+          option.value = model.id;
+          option.textContent = model.id;
+          modelSelect.appendChild(option);
+        });
+
+        if (llmModels.length === 0) {
+          modelSelect.innerHTML = '<option value="">No LLM models available</option>';
+        }
+
+        statusDot.classList.add('connected');
+        statusText.textContent = 'Connected';
+      } catch (err) {
+        statusText.textContent = 'Disconnected';
+        modelSelect.innerHTML = '<option value="">Cannot connect to server</option>';
+        console.error('Failed to load models:', err);
+      }
+    }
+
+    // Conversation management
+    function generateId() {
+      return 'conv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    function saveConversations() {
+      localStorage.setItem('lm_chat_conversations', JSON.stringify(conversations));
+    }
+
+    function renderConversationList() {
+      conversationList.innerHTML = '';
+      const sorted = Object.entries(conversations)
+        .sort((a, b) => b[1].updatedAt - a[1].updatedAt);
+
+      sorted.forEach(([id, conv]) => {
+        const item = document.createElement('div');
+        item.className = 'conversation-item' + (id === currentConversationId ? ' active' : '');
+        item.textContent = conv.title || 'New Chat';
+        item.addEventListener('click', () => loadConversation(id));
+        conversationList.appendChild(item);
+      });
+    }
+
+    function createNewConversation() {
+      const id = generateId();
+      conversations[id] = { messages: [], title: 'New Chat', createdAt: Date.now(), updatedAt: Date.now() };
+      currentConversationId = id;
+      saveConversations();
+      renderConversationList();
+      showWelcomeScreen();
+    }
+
+    function loadConversation(id) {
+      currentConversationId = id;
+      renderConversationList();
+
+      if (!conversations[id] || conversations[id].messages.length === 0) {
+        showWelcomeScreen();
+        return;
+      }
+
+      welcomeScreen.style.display = 'none';
+      messagesContainer.innerHTML = '';
+
+      conversations[id].messages.forEach(msg => {
+        const msgDiv = appendMessage(msg.role, msg.content, false);
+        const contentDiv = msgDiv.querySelector('.message-content');
+        if (msg.role === 'assistant') {
+          if (msg.reasoning) {
+            updateMessageWithReasoning(contentDiv, msg.reasoning, msg.content);
+          }
+          if (msg.tool_calls) {
+            msg.tool_calls.forEach(tc => {
+              const block = document.createElement('div');
+              block.className = 'tool-call-block';
+              const argsStr = typeof tc.args === 'object' ? JSON.stringify(tc.args, null, 2) : String(tc.args);
+              block.innerHTML = `
+                <div class="tool-call-header" onclick="this.nextElementSibling.classList.toggle('expanded')">
+                  <span class="tool-icon">${getToolIcon(tc.tool_name)}</span>
+                  <span>${tc.tool_name.replace(/_/g, ' ')}</span>
+                  <span class="tool-status done">done</span>
+                </div>
+                <div class="tool-args">${escapeHtml(argsStr)}</div>
+              `;
+              contentDiv.appendChild(block);
+            });
+          }
+        }
+      });
+    }
+
+    function updateConversationTitle() {
+      if (!currentConversationId || !conversations[currentConversationId]) return;
+      const msgs = conversations[currentConversationId].messages;
+      if (msgs.length > 0) {
+        const firstUserMsg = msgs.find(m => m.role === 'user');
+        if (firstUserMsg) {
+          conversations[currentConversationId].title =
+            firstUserMsg.content.substring(0, 40) + (firstUserMsg.content.length > 40 ? '...' : '');
+          conversations[currentConversationId].updatedAt = Date.now();
+          saveConversations();
+          renderConversationList();
+        }
+      }
+    }
+
+    function showWelcomeScreen() {
+      messagesContainer.innerHTML = '';
+      messagesContainer.appendChild(welcomeScreen);
+      welcomeScreen.style.display = 'flex';
+    }
+
+    // Message rendering
+    function updateMessageWithReasoning(contentDiv, reasoning, content) {
+      // Preserve existing tool-call-blocks
+      const toolBlocks = contentDiv.querySelectorAll('.tool-call-block');
+      let html = '';
+      if (reasoning) {
+        html += `<div class="reasoning-block">
+          <div class="reasoning-header" onclick="this.nextElementSibling.classList.toggle('expanded'); this.firstChild.textContent = this.nextElementSibling.classList.contains('expanded') ? '▾ ' : '▸ ';">
+            <span>▸</span> Thinking
+          </div>
+          <div class="reasoning-content">${escapeHtml(reasoning).replace(/\n/g, '<br>')}</div>
+        </div>`;
+      }
+      if (content) {
+        html += renderMarkdown(content);
+      }
+      // Build new content, then re-append tool blocks
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+      contentDiv.innerHTML = '';
+      while (tempDiv.firstChild) contentDiv.appendChild(tempDiv.firstChild);
+      toolBlocks.forEach(block => contentDiv.appendChild(block));
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function appendMessage(role, content, scroll = true) {
+      welcomeScreen.style.display = 'none';
+
+      const msgDiv = document.createElement('div');
+      msgDiv.className = `message ${role}`;
+
+      const avatar = document.createElement('div');
+      avatar.className = 'message-avatar';
+      avatar.textContent = role === 'user' ? 'U' : 'AI';
+
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'message-content';
+      contentDiv.innerHTML = renderMarkdown(content);
+
+      msgDiv.appendChild(avatar);
+      msgDiv.appendChild(contentDiv);
+      messagesContainer.appendChild(msgDiv);
+
+      if (scroll) messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      return contentDiv;
+    }
+
+    function appendTypingIndicator() {
+      welcomeScreen.style.display = 'none';
+
+      const msgDiv = document.createElement('div');
+      msgDiv.className = 'message assistant';
+      msgDiv.id = 'typingMessage';
+
+      const avatar = document.createElement('div');
+      avatar.className = 'message-avatar';
+      avatar.textContent = 'AI';
+
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'message-content';
+      contentDiv.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+
+      msgDiv.appendChild(avatar);
+      msgDiv.appendChild(contentDiv);
+      messagesContainer.appendChild(msgDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      return contentDiv;
+    }
+
+    // Tool call UI helpers
+    function getToolIcon(name) {
+      const icons = {
+        search_web: '🔍',
+        get_current_time: '🕐',
+        calculator: '🧮',
+        fetch_url: '🌐',
+        list_files: '📁',
+        read_file: '📄',
+        write_file: '✏️',
+        run_command: '💻',
+        get_weather: '🌤️',
+        text_to_speech_info: '🔊',
+        summarize_text: '📝'
+      };
+      return icons[name] || '🔧';
+    }
+
+    function appendToolCallsIndicator(count, contentDiv) {
+      const block = document.createElement('div');
+      block.className = 'tool-call-block';
+      block.innerHTML = `<div style="padding:8px 12px;font-size:12px;color:var(--text-muted);">
+        ⚡ Running ${count} tool${count > 1 ? 's' : ''}...
+      </div>`;
+      contentDiv.appendChild(block);
+    }
+
+    function appendToolRunning(toolName, toolArgs, contentDiv) {
+      const block = document.createElement('div');
+      block.className = 'tool-call-block';
+      const argsStr = typeof toolArgs === 'object' ? JSON.stringify(toolArgs, null, 2) : String(toolArgs);
+      block.innerHTML = `
+        <div class="tool-call-header" onclick="this.nextElementSibling.classList.toggle('expanded')">
+          <span class="tool-icon">${getToolIcon(toolName)}</span>
+          <span>${toolName.replace(/_/g, ' ')}</span>
+          <span class="tool-status running">running</span>
+        </div>
+        <div class="tool-args">${escapeHtml(argsStr)}</div>
+      `;
+      contentDiv.appendChild(block);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function updateToolResult(toolCallId, toolName, result, contentDiv) {
+      const blocks = contentDiv.querySelectorAll('.tool-call-block');
+      for (const block of blocks) {
+        const status = block.querySelector('.tool-status');
+        if (status && status.textContent === 'running') {
+          status.textContent = 'done';
+          status.className = 'tool-status done';
+          // Add collapsible result display
+          const resultDiv = document.createElement('div');
+          resultDiv.className = 'tool-args';
+          resultDiv.style.borderTop = '1px solid var(--border)';
+          resultDiv.style.background = 'rgba(46, 204, 113, 0.05)';
+          const resultStr = typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result);
+          const preview = resultStr.substring(0, 120) + (resultStr.length > 120 ? '...' : '');
+          resultDiv.innerHTML = `<div style="margin-bottom:4px;color:var(--success);font-size:10px;font-weight:600;">RESULT (click to expand):</div>${escapeHtml(preview)}`;
+          resultDiv.onclick = () => {
+            resultDiv.classList.toggle('expanded');
+            if (resultDiv.classList.contains('expanded')) {
+              resultDiv.innerHTML = `<div style="margin-bottom:4px;color:var(--success);font-size:10px;font-weight:600;">RESULT:</div>${escapeHtml(resultStr.substring(0, 5000))}`;
+            } else {
+              resultDiv.innerHTML = `<div style="margin-bottom:4px;color:var(--success);font-size:10px;font-weight:600;">RESULT (click to expand):</div>${escapeHtml(preview)}`;
+            }
+          };
+          block.appendChild(resultDiv);
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          break;
+        }
+      }
+    }
+
+    // Auto-resize textarea
+    messageInput.addEventListener('input', () => {
+      messageInput.style.height = 'auto';
+      messageInput.style.height = Math.min(messageInput.scrollHeight, 150) + 'px';
+      sendBtn.disabled = !messageInput.value.trim() || !modelSelect.value || isStreaming;
+    });
+
+    // Send message
+    async function sendMessage() {
+      const text = messageInput.value.trim();
+      if (!text || !modelSelect.value || isStreaming) return;
+
+      // Create conversation if needed
+      if (!currentConversationId || !conversations[currentConversationId]) {
+        createNewConversation();
+      }
+
+      // Add user message
+      appendMessage('user', text);
+      conversations[currentConversationId].messages.push({ role: 'user', content: text });
+      updateConversationTitle();
+
+      // Clear input
+      messageInput.value = '';
+      messageInput.style.height = 'auto';
+      sendBtn.disabled = true;
+
+      // Stream response
+      await streamResponse(text);
+    }
+
+    async function streamResponse(userMessage) {
+      isStreaming = true;
+      sendBtn.style.display = 'none';
+      stopBtn.style.display = 'flex';
+      abortController = new AbortController();
+
+      const contentDiv = appendTypingIndicator();
+
+      // Build messages array with system prompt
+      const messages = [
+        { role: 'system', content: settings.systemPrompt },
+        ...conversations[currentConversationId].messages
+      ];
+
+      try {
+        const response = await fetch(`${API_BASE}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: modelSelect.value,
+            messages: messages,
+            temperature: settings.temperature,
+            max_tokens: settings.maxTokens,
+            top_p: settings.topP,
+            stream: true
+          }),
+          signal: abortController.signal
+        });
+
+        // Remove typing indicator
+        const typingMsg = document.getElementById('typingMessage');
+        if (typingMsg) typingMsg.remove();
+
+        let fullContent = '';
+        let fullReasoning = '';
+        const messageContentDiv = appendMessage('assistant', '', true);
+        const toolCallsInConversation = [];
+        let updateTimeout = null;
+
+        function scheduleUpdate() {
+          if (updateTimeout) clearTimeout(updateTimeout);
+          updateTimeout = setTimeout(() => {
+            updateMessageWithReasoning(messageContentDiv, fullReasoning, fullContent);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            updateTimeout = null;
+          }, 50);
+        }
+
+        function flushUpdate() {
+          if (updateTimeout) {
+            clearTimeout(updateTimeout);
+            updateTimeout = null;
+          }
+          updateMessageWithReasoning(messageContentDiv, fullReasoning, fullContent);
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+
+          for (const line of lines) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(data);
+
+              // Handle tool events from server
+              if (parsed.type === 'tool_calls_start') {
+                flushUpdate();
+                appendToolCallsIndicator(parsed.count, messageContentDiv);
+                await new Promise(r => setTimeout(r, 10));
+                continue;
+              }
+
+              if (parsed.type === 'tool_start') {
+                appendToolRunning(parsed.tool_name, parsed.tool_args, messageContentDiv);
+                await new Promise(r => setTimeout(r, 10));
+                continue;
+              }
+
+              if (parsed.type === 'tool_result') {
+                updateToolResult(parsed.tool_call_id, parsed.tool_name, parsed.result, messageContentDiv);
+                toolCallsInConversation.push({
+                  tool_name: parsed.tool_name,
+                  args: parsed.tool_args,
+                  result: 'completed'
+                });
+                await new Promise(r => setTimeout(r, 10));
+                continue;
+              }
+
+              if (parsed.type === 'tool_call') {
+                continue;
+              }
+
+              // Regular streaming content
+              const delta = parsed.choices?.[0]?.delta;
+              if (delta?.reasoning_content) {
+                fullReasoning += delta.reasoning_content;
+                scheduleUpdate();
+              }
+              if (delta?.content) {
+                fullContent += delta.content;
+                scheduleUpdate();
+              }
+            } catch (e) {
+              // Skip malformed chunks
+            }
+          }
+        }
+
+        if (updateTimeout) {
+          clearTimeout(updateTimeout);
+          updateTimeout = null;
+        }
+        flushUpdate();
+
+        // Save assistant message
+        conversations[currentConversationId].messages.push({
+          role: 'assistant',
+          content: fullContent,
+          reasoning: fullReasoning,
+          tool_calls: toolCallsInConversation
+        });
+        saveConversations();
+
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          console.log('Request aborted');
+        } else {
+          const typingMsg = document.getElementById('typingMessage');
+          if (typingMsg) typingMsg.remove();
+          appendMessage('assistant', '**Error:** ' + err.message, true);
+          console.error('Stream error:', err);
+        }
+      } finally {
+        isStreaming = false;
+        abortController = null;
+        sendBtn.style.display = 'flex';
+        stopBtn.style.display = 'none';
+        sendBtn.disabled = !messageInput.value.trim() || !modelSelect.value;
+      }
+    }
+
+    // Event listeners
+    const stopBtn = document.getElementById('stopBtn');
+    sendBtn.addEventListener('click', sendMessage);
+    stopBtn.addEventListener('click', () => {
+      if (abortController) abortController.abort();
+    });
+
+    messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    newChatBtn.addEventListener('click', () => {
+      if (isStreaming && abortController) {
+        abortController.abort();
+      }
+      currentConversationId = null;
+      createNewConversation();
+    });
+
+    // Suggestion clicks
+    document.querySelectorAll('.suggestion').forEach(sug => {
+      sug.addEventListener('click', () => {
+        messageInput.value = sug.dataset.prompt;
+        messageInput.dispatchEvent(new Event('input'));
+        sendMessage();
+      });
+    });
+
+    // Settings
+    settingsBtn.addEventListener('click', () => {
+      settingsModal.classList.add('active');
+    });
+
+    document.getElementById('cancelSettings').addEventListener('click', () => {
+      settingsModal.classList.remove('active');
+    });
+
+    document.getElementById('saveSettings').addEventListener('click', () => {
+      settings.temperature = parseFloat(document.getElementById('temperature').value);
+      settings.maxTokens = parseInt(document.getElementById('maxTokens').value);
+      settings.topP = parseFloat(document.getElementById('topP').value);
+      settings.systemPrompt = document.getElementById('systemPrompt').value;
+      localStorage.setItem('lm_chat_settings', JSON.stringify(settings));
+      settingsModal.classList.remove('active');
+    });
+
+    settingsModal.addEventListener('click', (e) => {
+      if (e.target === settingsModal) settingsModal.classList.remove('active');
+    });
+
+    // Range input live updates
+    document.getElementById('temperature').addEventListener('input', (e) => {
+      document.getElementById('tempValue').textContent = e.target.value;
+    });
+    document.getElementById('maxTokens').addEventListener('input', (e) => {
+      document.getElementById('maxTokensValue').textContent = e.target.value;
+    });
+    document.getElementById('topP').addEventListener('input', (e) => {
+      document.getElementById('topPValue').textContent = e.target.value;
+    });
+
+    // Initialize
+    loadModels();
+    renderConversationList();
+    if (Object.keys(conversations).length > 0) {
+      createNewConversation();
+    }
+  </script>
+</body>
+</html>
