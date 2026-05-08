@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LM Studio Chat</title>
+  
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+        LM Chat
+      </div>
+      <button class="new-chat-btn" id="newChatBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        New Chat
+      </button>
+    </div>
+    <div class="conversation-list" id="conversationList"></div>
+    <div class="sidebar-footer">
+      <div class="status-indicator">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Connecting...</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <header class="chat-header">
+      <div class="model-selector">
+        <label for="modelSelect">Model:</label>
+        <select class="model-select" id="modelSelect">
+          <option value="">Loading models...</option>
+        </select>
+      </div>
+      <div class="header-actions">
+        <span style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:4px;padding:4px 10px;background:var(--bg-tertiary);border-radius:6px;">
+          🔧 Tools: search, time, calc, fetch, files, weather, shell, summarize
+        </span>
+        <button class="icon-btn" id="settingsBtn" title="Settings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="messages-container" id="messagesContainer">
+      <div class="welcome-screen" id="welcomeScreen">
+        <h2>How can I help you today?</h2>
+        <p>Select a model and start chatting</p>
+        <div class="suggestions">
+          <div class="suggestion" data-prompt="What's the weather in London today?">🌤️ What's the weather in London today?</div>
+          <div class="suggestion" data-prompt="What is the current time in New York?">🕐 What is the current time in New York?</div>
+          <div class="suggestion" data-prompt="Calculate the square root of 256 times 3.14">🧮 Calculate sqrt(256) * 3.14</div>
+          <div class="suggestion" data-prompt="List files in /home/vkanta/wspaces">📁 List files in /home/vkanta/wspaces</div>
+          <div class="suggestion" data-prompt="What processes are running?">💻 What processes are running?</div>
+          <div class="suggestion" data-prompt="Explain how transformers work in simple terms">Explain how transformers work in simple terms</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-wrapper">
+        <textarea class="input-box" id="messageInput" placeholder="Type your message..." rows="1"></textarea>
+        <button class="send-btn" id="sendBtn" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+        <button class="send-btn" id="stopBtn" style="display:none;background:#e74c3c;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="1"/>
+          </svg>
+        </button>
+      </div>
+      <div class="input-hint">Press Enter to send, Shift+Enter for new line</div>
+    </div>
+  </main>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+      <h3>Generation Settings</h3>
+      <div class="setting-group">
+        <label>Temperature <span class="setting-value" id="tempValue">0.7</span></label>
+        <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7">
+      </div>
+      <div class="setting-group">
+        <label>Max Tokens <span class="setting-value" id="maxTokensValue">4096</span></label>
+        <input type="number" id="maxTokens" min="64" max="8192" step="64" value="4096">
+      </div>
+      <div class="setting-group">
+        <label>Top P <span class="setting-value" id="topPValue">0.9</span></label>
+        <input type="range" id="topP" min="0" max="1" step="0.05" value="0.9">
+      </div>
+      <div class="setting-group">
+        <label>System Prompt</label>
+        <textarea id="systemPrompt" rows="3" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:8px;color:var(--text-primary);font-size:13px;font-family:inherit;resize:vertical;">You are a helpful assistant. Use available tools when they help answer the user's question. For current information, use search_web. For math, use calculator. For time questions, use get_current_time. For weather, use get_weather. For file operations, use read_file, write_file, or list_files. For system commands, use run_command.</textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="cancelSettings">Cancel</button>
+        <button class="btn btn-primary" id="saveSettings">Save</button>
+      </div>
+    </div>
+  </div>
+
+  
+</body>
+</html>

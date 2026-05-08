@@ -1,7 +1,13 @@
+/**
+ * LM Studio Chat SPA - Proxy Server
+ * Handles API proxying to LM Studio with tool calling support
+ * Provides CORS handling, streaming responses, and automated tool execution
+ */
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { URL } = require('url');
+
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
@@ -28,11 +34,11 @@ const TOOLS = [
       parameters: {
         type: 'object',
         properties: {
-          query: { type: 'string', description: 'The search query' }
+          query: { type: 'string', description: 'The search query' },
         },
-        required: ['query']
-      }
-    }
+        required: ['query'],
+      },
+    },
   },
   {
     type: 'function',
@@ -42,11 +48,11 @@ const TOOLS = [
       parameters: {
         type: 'object',
         properties: {
-          timezone: { type: 'string', description: 'Timezone (default: UTC)', default: 'UTC' }
+          timezone: { type: 'string', description: 'Timezone (default: UTC)', default: 'UTC' },
         },
-        required: []
-      }
-    }
+        required: [],
+      },
+    },
   },
   {
     type: 'function',
@@ -56,11 +62,11 @@ const TOOLS = [
       parameters: {
         type: 'object',
         properties: {
-          expression: { type: 'string', description: 'Math expression to evaluate (e.g., "2+2", "sqrt(16)")' }
+          expression: { type: 'string', description: 'Math expression to evaluate (e.g., "2+2", "sqrt(16)")' },
         },
-        required: ['expression']
-      }
-    }
+        required: ['expression'],
+      },
+    },
   },
   {
     type: 'function',
@@ -70,11 +76,11 @@ const TOOLS = [
       parameters: {
         type: 'object',
         properties: {
-          url: { type: 'string', description: 'The URL to fetch' }
+          url: { type: 'string', description: 'The URL to fetch' },
         },
-        required: ['url']
-      }
-    }
+        required: ['url'],
+      },
+    },
   },
   {
     type: 'function',
@@ -84,11 +90,11 @@ const TOOLS = [
       parameters: {
         type: 'object',
         properties: {
-          directory: { type: 'string', description: 'Directory path to list (default: current working directory)' }
+          directory: { type: 'string', description: 'Directory path to list (default: current working directory)' },
         },
-        required: []
-      }
-    }
+        required: [],
+      },
+    },
   },
   {
     type: 'function',
@@ -98,11 +104,11 @@ const TOOLS = [
       parameters: {
         type: 'object',
         properties: {
-          filepath: { type: 'string', description: 'Path to the file to read' }
+          filepath: { type: 'string', description: 'Path to the file to read' },
         },
-        required: ['filepath']
-      }
-    }
+        required: ['filepath'],
+      },
+    },
   },
   {
     type: 'function',
@@ -113,11 +119,11 @@ const TOOLS = [
         type: 'object',
         properties: {
           filepath: { type: 'string', description: 'Path to the file to write' },
-          content: { type: 'string', description: 'Content to write to the file' }
+          content: { type: 'string', description: 'Content to write to the file' },
         },
-        required: ['filepath', 'content']
-      }
-    }
+        required: ['filepath', 'content'],
+      },
+    },
   },
   {
     type: 'function',
@@ -128,11 +134,11 @@ const TOOLS = [
         type: 'object',
         properties: {
           command: { type: 'string', description: 'The shell command to execute' },
-          timeout: { type: 'number', description: 'Timeout in milliseconds (default: 30000)', default: 30000 }
+          timeout: { type: 'number', description: 'Timeout in milliseconds (default: 30000)', default: 30000 },
         },
-        required: ['command']
-      }
-    }
+        required: ['command'],
+      },
+    },
   },
   {
     type: 'function',
@@ -143,11 +149,11 @@ const TOOLS = [
         type: 'object',
         properties: {
           location: { type: 'string', description: 'City name, zip code, or coordinates (e.g., "London", "90210", "40.7128,-74.0060")' },
-          units: { type: 'string', description: 'Units: "metric" (Celsius) or "imperial" (Fahrenheit). Default: metric', enum: ['metric', 'imperial'] }
+          units: { type: 'string', description: 'Units: "metric" (Celsius) or "imperial" (Fahrenheit). Default: metric', enum: ['metric', 'imperial'] },
         },
-        required: ['location']
-      }
-    }
+        required: ['location'],
+      },
+    },
   },
   {
     type: 'function',
@@ -157,11 +163,11 @@ const TOOLS = [
       parameters: {
         type: 'object',
         properties: {
-          action: { type: 'string', description: 'Action to perform: "list_models", "get_info"', enum: ['list_models', 'get_info'] }
+          action: { type: 'string', description: 'Action to perform: "list_models", "get_info"', enum: ['list_models', 'get_info'] },
         },
-        required: ['action']
-      }
-    }
+        required: ['action'],
+      },
+    },
   },
   {
     type: 'function',
@@ -172,22 +178,28 @@ const TOOLS = [
         type: 'object',
         properties: {
           text: { type: 'string', description: 'The text to summarize' },
-          max_length: { type: 'number', description: 'Maximum length of summary in words (default: 100)', default: 100 }
+          max_length: { type: 'number', description: 'Maximum length of summary in words (default: 100)', default: 100 },
         },
-        required: ['text']
-      }
-    }
-  }
+        required: ['text'],
+      },
+    },
+  },
 ];
 
 // Tool implementations
 const toolImplementations = {
+  /**
+   * Search the web using DuckDuckGo Instant Answer API
+   * @param {Object} params - Search parameters
+   * @param {string} params.query - The search query string
+   * @returns {Promise<Object>} Search results with titles, URLs, snippets and count
+   */
   async search_web({ query }) {
     try {
       // Use DuckDuckGo Instant Answer API (more reliable, no HTML parsing)
       const apiRes = await fetch(
         `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`,
-        { signal: AbortSignal.timeout(10000) }
+        { signal: AbortSignal.timeout(10000) },
       );
       const apiData = await apiRes.json();
 
@@ -196,16 +208,16 @@ const toolImplementations = {
       // Extract related topics (these are the actual search results)
       if (apiData.RelatedTopics && apiData.RelatedTopics.length > 0) {
         for (const topic of apiData.RelatedTopics) {
-          if (results.length >= 8) break;
+          if (results.length >= 8) {break;}
           // Skip separator entries
           if (topic.Topics) {
             for (const sub of topic.Topics) {
-              if (results.length >= 8) break;
+              if (results.length >= 8) {break;}
               if (sub.Text && sub.FirstURL) {
                 results.push({
                   title: sub.Text.split('.').shift()?.trim() || sub.Text.substring(0, 80),
                   url: sub.FirstURL,
-                  snippet: sub.Text.substring(0, 250)
+                  snippet: sub.Text.substring(0, 250),
                 });
               }
             }
@@ -213,7 +225,7 @@ const toolImplementations = {
             results.push({
               title: topic.Text.split('.').shift()?.trim() || topic.Text.substring(0, 80),
               url: topic.FirstURL,
-              snippet: topic.Text.substring(0, 250)
+              snippet: topic.Text.substring(0, 250),
             });
           }
         }
@@ -224,7 +236,7 @@ const toolImplementations = {
         const abstractEntry = {
           title: apiData.Heading || query,
           url: apiData.AbstractURL || '',
-          snippet: apiData.Abstract.substring(0, 400)
+          snippet: apiData.Abstract.substring(0, 400),
         };
         // Prepend abstract as first result
         results.unshift(abstractEntry);
@@ -236,6 +248,12 @@ const toolImplementations = {
     }
   },
 
+  /**
+   * Get current time in specified timezone using Intl API
+   * @param {Object} params - Time parameters  
+   * @param {string} [params.timezone='UTC'] - IANA timezone identifier
+   * @returns {Promise<Object>} Time information with datetime, formatted string and timezone
+   */
   async get_current_time({ timezone = 'UTC' }) {
     try {
       const now = new Date();
@@ -243,13 +261,20 @@ const toolImplementations = {
       return {
         datetime: now.toISOString(),
         formatted: now.toLocaleString('en-US', options),
-        timezone: timezone
+        timezone,
       };
     } catch (err) {
       return { error: `Time lookup failed: ${err.message}` };
     }
   },
 
+  /**
+   * Evaluate a mathematical expression with support for common math functions
+   * Supports: +, -, *, /, %, ^, sqrt(), sin(), cos(), log(), pi, e
+   * @param {Object} params - Expression parameters  
+   * @param {string} params.expression - Mathematical expression to evaluate
+   * @returns {Promise<Object>} Result object with expression and numeric result or error
+   */
   async calculator({ expression }) {
     try {
       const sanitized = expression.replace(/[^0-9+\-*/().,%^sqrtSincoslogEPIw ]/g, '');
@@ -268,6 +293,12 @@ const toolImplementations = {
     }
   },
 
+  /**
+   * Fetch and extract text content from a URL (strips scripts/styles)
+   * @param {Object} params - URL parameters  
+   * @param {string} params.url - The URL to fetch
+   * @returns {Promise<Object>} Content object with url, title, text and length
+   */
   async fetch_url({ url }) {
     try {
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
@@ -275,7 +306,7 @@ const toolImplementations = {
       }
       const response = await fetch(url, {
         headers: { 'User-Agent': 'Mozilla/5.0' },
-        signal: AbortSignal.timeout(10000)
+        signal: AbortSignal.timeout(10000),
       });
       const html = await response.text();
       const text = html
@@ -291,6 +322,12 @@ const toolImplementations = {
     }
   },
 
+  /**
+   * List files and directories in a specified path  
+   * @param {Object} params - Directory parameters  
+   * @param {string} [params.directory=process.cwd()] - Path to directory
+   * @returns {Promise<Object>} Directory info with path, files array and count
+   */
   async list_files({ directory = process.cwd() }) {
     try {
       const items = fs.readdirSync(directory, { withFileTypes: true });
@@ -298,15 +335,21 @@ const toolImplementations = {
         directory,
         files: items.map(i => ({
           name: i.name,
-          type: i.isDirectory() ? 'directory' : 'file'
+          type: i.isDirectory() ? 'directory' : 'file',
         })),
-        count: items.length
+        count: items.length,
       };
     } catch (err) {
       return { error: `Failed to list directory: ${err.message}`, directory };
     }
   },
 
+  /**
+   * Read contents of a local file (max 1MB, truncated to 50KB)
+   * @param {Object} params - File parameters  
+   * @param {string} params.filepath - Path to file to read
+   * @returns {Promise<Object>} File info with resolved path, size and content
+   */
   async read_file({ filepath }) {
     try {
       const resolved = path.resolve(filepath);
@@ -319,13 +362,20 @@ const toolImplementations = {
         filepath: resolved,
         size: stats.size,
         content: content.substring(0, 50000),
-        truncated: stats.size > 50000
+        truncated: stats.size > 50000,
       };
     } catch (err) {
       return { error: `Failed to read file: ${err.message}`, filepath };
     }
   },
 
+  /**
+   * Write content to a local file (creates parent directories automatically)
+   * @param {Object} params - File parameters  
+   * @param {string} params.filepath - Path to file to write
+   * @param {string} params.content - Content to write
+   * @returns {Promise<Object>} Result with resolved path, size and success flag
+   */
   async write_file({ filepath, content }) {
     try {
       const resolved = path.resolve(filepath);
@@ -334,13 +384,20 @@ const toolImplementations = {
       return {
         filepath: resolved,
         size: Buffer.byteLength(content, 'utf-8'),
-        success: true
+        success: true,
       };
     } catch (err) {
       return { error: `Failed to write file: ${err.message}`, filepath };
     }
   },
 
+  /**
+   * Execute a shell command (30s default timeout, blocks dangerous commands)
+   * @param {Object} params - Command parameters  
+   * @param {string} params.command - Shell command to execute
+   * @param {number} [params.timeout=30000] - Timeout in milliseconds
+   * @returns {Promise<Object>} Result with command, stdout, stderr and truncation info
+   */
   async run_command({ command, timeout = 30000 }) {
     try {
       const blocked = ['format', 'mkfs', 'rm -rf', ':(){:|:|}', 'dd if=', 'shutdown', 'reboot', 'fdisk'];
@@ -352,27 +409,34 @@ const toolImplementations = {
         command,
         stdout: stdout.substring(0, 10000),
         stderr: stderr ? stderr.substring(0, 5000) : '',
-        truncated: stdout.length > 10000
+        truncated: stdout.length > 10000,
       };
     } catch (err) {
       return {
         error: err.message,
         command,
         stdout: err.stdout ? err.stdout.substring(0, 5000) : '',
-        stderr: err.stderr ? err.stderr.substring(0, 5000) : ''
+        stderr: err.stderr ? err.stderr.substring(0, 5000) : '',
       };
     }
   },
 
+  /**
+   * Get weather information for a location using OpenWeatherMap API or wttr.in fallback
+   * @param {Object} params - Weather parameters  
+   * @param {string} params.location - City name, zip code or coordinates
+   * @param {string} [params.units='metric'] - Units: 'metric' (Celsius) or 'imperial' (Fahrenheit)
+   * @returns {Promise<Object>} Weather data with location, temp and description
+   */
   async get_weather({ location, units = 'metric' }) {
     try {
       const apiKey = process.env.WEATHER_API_KEY || '';
       if (apiKey) {
         const res = await fetch(
           `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(location)}&appid=${apiKey}&units=${units}`,
-          { signal: AbortSignal.timeout(8000) }
+          { signal: AbortSignal.timeout(8000) },
         );
-        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        if (!res.ok) {throw new Error(`API error: ${res.status}`);}
         const data = await res.json();
         return {
           location: `${data.name}, ${data.sys.country}`,
@@ -381,12 +445,12 @@ const toolImplementations = {
           humidity: data.main.humidity,
           wind_speed: data.wind.speed,
           description: data.weather[0].description,
-          units: units === 'metric' ? '°C' : '°F'
+          units: units === 'metric' ? '°C' : '°F',
         };
       }
       const res = await fetch(
         `https://wttr.in/${encodeURIComponent(location)}?format=j1`,
-        { signal: AbortSignal.timeout(8000) }
+        { signal: AbortSignal.timeout(8000) },
       );
       const data = await res.json();
       const current = data.current_condition[0];
@@ -397,13 +461,19 @@ const toolImplementations = {
         humidity: parseInt(current.humidity),
         wind_speed: parseInt(current.windspeedKmph) || parseInt(current.windspeedMiles),
         description: current.weatherDesc[0].value,
-        units: units === 'metric' ? '°C' : '°F'
+        units: units === 'metric' ? '°C' : '°F',
       };
     } catch (err) {
       return { error: `Weather lookup failed: ${err.message}`, location };
     }
   },
 
+  /**
+   * Query available TTS models from LM Studio  
+   * @param {Object} params - Action parameters  
+   * @param {string} params.action - Action: 'list_models' or 'get_info'
+   * @returns {Promise<Object>} TTS information with model list and endpoint
+   */
   async text_to_speech_info({ action }) {
     try {
       const res = await fetch(`${LM_API}/v1/models`, { signal: AbortSignal.timeout(5000) });
@@ -412,19 +482,26 @@ const toolImplementations = {
       if (action === 'list_models') {
         return {
           tts_models: ttsModels.map(m => m.id),
-          available: ttsModels.length > 0
+          available: ttsModels.length > 0,
         };
       }
       return {
         info: 'Text-to-speech capabilities depend on loaded models',
         available_models: ttsModels.map(m => m.id),
-        endpoint: `${LM_API}/v1/audio/speech`
+        endpoint: `${LM_API}/v1/audio/speech`,
       };
     } catch (err) {
       return { error: `Failed to query TTS info: ${err.message}` };
     }
   },
 
+  /**
+   * Summarize long text to specified length by extracting key sentences  
+   * @param {Object} params - Summary parameters  
+   * @param {string} params.text - Text to summarize
+   * @param {number} [params.max_length=100] - Maximum words in summary
+   * @returns {Promise<Object>} Summary with original/summary length and reduction percentage
+   */
   async summarize_text({ text, max_length = 100 }) {
     try {
       const words = text.split(/\s+/);
@@ -436,7 +513,7 @@ const toolImplementations = {
       let count = 0;
       for (const sentence of sentences) {
         const sWords = sentence.split(/\s+/).length;
-        if (count + sWords > max_length) break;
+        if (count + sWords > max_length) {break;}
         summary += sentence.trim() + ' ';
         count += sWords;
       }
@@ -444,21 +521,31 @@ const toolImplementations = {
         summary: summary.trim(),
         original_length: words.length,
         summary_length: count,
-        reduction: `${Math.round((1 - count / words.length) * 100)}%`
+        reduction: `${Math.round((1 - count / words.length) * 100)}%`,
       };
     } catch (err) {
       return { error: `Summarization failed: ${err.message}` };
     }
-  }
+  },
 };
 
-function handleCors(res) {
+/**
+   * Set CORS headers on response object for cross-origin requests
+   * @param {Object} res - Node http.OutgoingMessage response object
+   */
+  function handleCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
-async function proxyToLmStudio(req, res) {
+/**
+   * Proxy requests to LM Studio API with tool calling support
+   * Handles streaming and non-streaming responses with automated tool execution
+   * @param {Object} req - Node http.IncomingMessage request object  
+   * @param {Object} res - Node http.OutgoingMessage response object
+   */
+  async function proxyToLmStudio(req, res) {
   handleCors(res);
 
   if (req.method === 'OPTIONS') {
@@ -487,8 +574,8 @@ async function proxyToLmStudio(req, res) {
     }
 
     // Handle tool calling loop
-    let allToolCalls = [];
-    let allToolResults = [];
+    const allToolCalls = [];
+    const allToolResults = [];
 
     const lmUrl = LM_API + req.url;
     const fetchOptions = {
@@ -509,19 +596,18 @@ async function proxyToLmStudio(req, res) {
 
       const reader = lmRes.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
       let finalMessage = null;
       let hasToolCalls = false;
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {break;}
 
         const chunk = decoder.decode(value, { stream: true });
         const lines = chunk.split('\n');
 
         for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
+          if (!line.startsWith('data: ')) {continue;}
           const data = line.slice(6);
           if (data === '[DONE]') {
             // Check if model wants to call tools
@@ -531,7 +617,7 @@ async function proxyToLmStudio(req, res) {
               for (const tc of finalMessage.tool_calls) {
                 res.write(`data: ${JSON.stringify({
                   type: 'tool_call',
-                  tool_call: tc
+                  tool_call: tc,
                 })}\n\n`);
               }
             }
@@ -551,23 +637,23 @@ async function proxyToLmStudio(req, res) {
                   finalMessage.tool_calls[tc.index] = {
                     id: tc.id || '',
                     type: 'function',
-                    function: { name: '', arguments: '' }
+                    function: { name: '', arguments: '' },
                   };
                 }
-                if (tc.id) finalMessage.tool_calls[tc.index].id = tc.id;
-                if (tc.function?.name) finalMessage.tool_calls[tc.index].function.name = tc.function.name;
-                if (tc.function?.arguments) finalMessage.tool_calls[tc.index].function.arguments += tc.function.arguments;
+                if (tc.id) {finalMessage.tool_calls[tc.index].id = tc.id;}
+                if (tc.function?.name) {finalMessage.tool_calls[tc.index].function.name = tc.function.name;}
+                if (tc.function?.arguments) {finalMessage.tool_calls[tc.index].function.arguments += tc.function.arguments;}
               }
             }
             if (delta?.content) {
-              if (!finalMessage) finalMessage = { content: '', tool_calls: [] };
+              if (!finalMessage) {finalMessage = { content: '', tool_calls: [] };}
               finalMessage.content += delta.content;
             }
             if (delta?.reasoning_content) {
-              if (!finalMessage) finalMessage = { content: '', tool_calls: [] };
+              if (!finalMessage) {finalMessage = { content: '', tool_calls: [] };}
               finalMessage.reasoning_content = (finalMessage.reasoning_content || '') + delta.reasoning_content;
             }
-          } catch (e) { /* skip */ }
+          } catch { /* skip */ }
 
           // Forward original stream data to client
           res.write(line + '\n');
@@ -581,8 +667,8 @@ async function proxyToLmStudio(req, res) {
           type: 'function',
           function: {
             name: tc.function.name,
-            arguments: tc.function.arguments
-          }
+            arguments: tc.function.arguments,
+          },
         }));
 
         allToolCalls.push({ role: 'assistant', content: finalMessage.content, tool_calls: toolCalls });
@@ -598,7 +684,7 @@ async function proxyToLmStudio(req, res) {
           res.write(`data: ${JSON.stringify({
             type: 'tool_start',
             tool_name: tc.function.name,
-            tool_args: args
+            tool_args: args,
           })}\n\n`);
 
           const result = toolFn ? await toolFn(args) : { error: `Unknown tool: ${tc.function.name}` };
@@ -608,13 +694,13 @@ async function proxyToLmStudio(req, res) {
             type: 'tool_result',
             tool_call_id: tc.id,
             tool_name: tc.function.name,
-            result: result
+            result,
           })}\n\n`);
 
           allToolResults.push({
             role: 'tool',
             tool_call_id: tc.id,
-            content: JSON.stringify(result)
+            content: JSON.stringify(result),
           });
         }
 
@@ -622,7 +708,7 @@ async function proxyToLmStudio(req, res) {
         requestBody.messages = [
           ...requestBody.messages.filter(m => m.role === 'system'),
           ...allToolCalls,
-          ...allToolResults
+          ...allToolResults,
         ];
         delete requestBody.stream; // Use non-streaming for tool rounds
 
@@ -653,15 +739,15 @@ async function proxyToLmStudio(req, res) {
             requestBody.messages = [
               ...requestBody.messages.filter(m => m.role === 'system'),
               ...allToolCalls,
-              ...allToolResults
+              ...allToolResults,
             ];
           } else {
             // Final response - send in chunks with delays to not block UI
             if (msg?.reasoning_content) {
               res.write(`data: ${JSON.stringify({
                 choices: [{
-                  delta: { reasoning_content: msg.reasoning_content }
-                }]
+                  delta: { reasoning_content: msg.reasoning_content },
+                }],
               })}\n\n`);
               await new Promise(r => setTimeout(r, 20));
             }
@@ -670,8 +756,8 @@ async function proxyToLmStudio(req, res) {
               for (const sentence of sentences) {
                 res.write(`data: ${JSON.stringify({
                   choices: [{
-                    delta: { content: sentence }
-                  }]
+                    delta: { content: sentence },
+                  }],
                 })}\n\n`);
                 await new Promise(r => setTimeout(r, 30));
               }
@@ -699,7 +785,7 @@ async function proxyToLmStudio(req, res) {
           requestBody.messages.push({
             role: 'tool',
             tool_call_id: tc.id,
-            content: JSON.stringify(toolResult)
+            content: JSON.stringify(toolResult),
           });
         }
         lmRes = await fetch(lmUrl, {
