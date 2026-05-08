@@ -277,20 +277,89 @@ const toolImplementations = {
    */
   async calculator({ expression }) {
     try {
-      const sanitized = expression.replace(/[^0-9+\-*/().,%^sqrtSincoslogEPIw ]/g, '');
-      const expanded = sanitized
-        .replace(/sqrt\(([^)]+)\)/g, 'Math.sqrt($1)')
-        .replace(/sin\(([^)]+)\)/g, 'Math.sin($1)')
-        .replace(/cos\(([^)]+)\)/g, 'Math.cos($1)')
-        .replace(/log\(([^)]+)\)/g, 'Math.log($1)')
-        .replace(/pi/gi, 'Math.PI')
+      const expanded = expression
+        .replace(/sqrt\(/g, 'Math.sqrt(')
+        .replace(/sin\(/g, 'Math.sin(')
+        .replace(/cos\(/g, 'Math.cos(')
+        .replace(/log\(/g, 'Math.log(')
+        .replace(/\bpi\b/gi, 'Math.PI')
         .replace(/(?<![a-z])e(?![a-z])/gi, 'Math.E')
         .replace(/\^/g, '**');
-      const result = new Function('return ' + expanded)();
+      if (!/^[\d.+\-*/().,%\s]+$/.test(expanded.replace(/Math\.(sqrt|sin|cos|log|PI|E)/g, 'N'))) {
+        throw new Error('Invalid expression characters');
+      }
+      const result = this._safeEvaluate(expanded);
       return { expression, result: Number.isFinite(result) ? result : 'Error: invalid result' };
     } catch (err) {
       return { error: `Calculation failed: ${err.message}`, expression };
     }
+  },
+
+  _safeEvaluate(expression) {
+    const tokens = expression.match(/(\d+(\.\d+)?|Math\.(sqrt|sin|cos|log|PI)|E|[+\-*/%^()])/g) || [];
+    let ipos = 0;
+    
+    function peek() { return tokens[ipos]; }
+    
+    function consume() { return tokens[ipos++]; }
+    
+    function parseExpr() {
+      let result = parseTerm();
+      while (peek() === '+' || peek() === '-') {
+        const op = consume();
+        const right = parseTerm();
+        if (op === '+') {result += right;}
+        else {result -= right;}
+      }
+      return result;
+    }
+    
+    function parseTerm() {
+      let result = parseFactor();
+      while (peek() === '*' || peek() === '/') {
+        const op = consume();
+        const right = parseFactor();
+        if (op === '*') {result *= right;}
+        else if (right === 0) {throw new Error('Division by zero');}
+        else {result /= right;}
+      }
+      return result;
+    }
+    
+    function parseFactor() {
+      const token = peek();
+      
+      if (token === '(') {
+        consume();
+        const result = parseExpr();
+        if (peek() !== ')') {throw new Error('Missing closing parenthesis');}
+        consume();
+        return result;
+      }
+      
+      if (token && /^Math\.(sqrt|sin|cos|log)$/.test(token)) {
+        consume();
+        const arg = parseFactor();
+        switch (token) {
+          case 'Math.sqrt': return Math.sqrt(arg);
+          case 'Math.sin': return Math.sin(arg);
+          case 'Math.cos': return Math.cos(arg);
+          case 'Math.log': return Math.log(arg);
+        }
+      }
+      
+      if (token === 'Math.PI') { consume(); return Math.PI; }
+      if (token === 'E' || token === 'e') { consume(); return Math.E; }
+      
+      if (/^\d+(\.\d+)?$/.test(token)) {
+        consume();
+        return parseFloat(token);
+      }
+      
+      throw new Error('Unexpected token: ' + token);
+    }
+    
+    return parseExpr();
   },
 
   /**
